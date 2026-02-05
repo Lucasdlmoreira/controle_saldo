@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Controle Financeiro</title>
+    <title>Meu Controle Financeiro</title>
     <style>
         :root {
             --nu-roxo: #820ad1;
@@ -153,7 +153,7 @@
             <h2>💰 Minha Conta</h2>
             
             <div class="row">
-                <label>Saldo Inicial (Visto no App)</label>
+                <label>Saldo Inicial (Do Mês)</label>
                 <input type="tel" id="saldo-nu" class="input-money" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
             </div>
 
@@ -162,7 +162,7 @@
                     <label style="color: #f57f17;">Saldo no App Agora:</label>
                     <div class="calc-value text-orange" id="res-saldo-app">R$ 0,00</div>
                 </div>
-                <small style="color: #f9a825; font-size: 0.75rem;">(Saldo Inicial - Gastos Pix/Débito Já Feitos)</small>
+                <small style="color: #f9a825; font-size: 0.75rem;">(Saldo Inicial - Gastos Pix Já Feitos)</small>
             </div>
 
             <div class="row">
@@ -177,13 +177,13 @@
                 <span class="text-orange" id="res-total-pix" style="font-size: 1rem;">R$ 0,00</span>
             </h2>
             <p style="font-size: 0.8rem; color: #999; margin-top: -10px; margin-bottom: 15px;">
-                Adicione aqui o que já saiu da conta.
+                Adicione aqui o que JÁ saiu da conta (Sabonete, etc).
             </p>
 
             <ul class="fatura-list" id="lista-pix"></ul>
             
             <div class="add-area">
-                <input type="text" id="novo-pix-nome" placeholder="Gasto">
+                <input type="text" id="novo-pix-nome" placeholder="Gasto (ex: Sabonete)">
                 <input type="tel" id="novo-pix-valor" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
                 <button class="btn-add bg-orange" onclick="adicionarItem('pix')">+</button>
             </div>
@@ -255,7 +255,7 @@
             <ul class="fatura-list" id="lista-futuros"></ul>
             
             <div class="add-area">
-                <input type="text" id="novo-futuro-nome" placeholder="Gasto">
+                <input type="text" id="novo-futuro-nome" placeholder="Ex: Peças Carro">
                 <input type="tel" id="novo-futuro-valor" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
                 <button class="btn-add bg-gray" onclick="adicionarItem('futuros')">+</button>
             </div>
@@ -281,12 +281,17 @@
             { nome: "PS Plus", valor: 65.00 }
         ];
 
+        const ORDEM_MESES = [
+            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        ];
+
         let dadosGerais = {}; 
         let mesAtual = "Fevereiro";
         let estado = {}; 
 
         function init() {
-            const salvo = localStorage.getItem('financasV13'); // Atualizado V13
+            const salvo = localStorage.getItem('financasV15'); // Atualizado V15
             if (salvo) {
                 dadosGerais = JSON.parse(salvo);
             }
@@ -328,32 +333,81 @@
         function carregarMes(mes) {
             if (dadosGerais[mes]) {
                 estado = dadosGerais[mes];
-                // Garante compatibilidade se a versão anterior não tinha 'futuros'
-                if(!estado.futuros) estado.futuros = [];
             } else {
+                // Lógica de herança de saldo
+                let saldoInicialCalculado = 0;
+                
+                const indexMes = ORDEM_MESES.indexOf(mes);
+                if (indexMes > 0) {
+                    const nomeMesAnterior = ORDEM_MESES[indexMes - 1];
+                    saldoInicialCalculado = calcularSobraDoMes(dadosGerais[nomeMesAnterior]);
+                }
+
                 estado = {
-                    saldoNu: 0,
+                    saldoNu: saldoInicialCalculado > 0 ? saldoInicialCalculado : 0,
                     salario: 0,
                     faturaApp: 0,
                     fixos: JSON.parse(JSON.stringify(FIXOS_PADRAO)),
                     extras: [],
                     terceiros: [],
                     pix: [],
-                    futuros: [] // Novo array para planejados
+                    futuros: []
                 };
             }
 
+            // Preenche campos
             document.getElementById('saldo-nu').value = estado.saldoNu > 0 ? formatar(estado.saldoNu) : '';
             document.getElementById('salario').value = estado.salario > 0 ? formatar(estado.salario) : '';
             document.getElementById('fatura-app').value = estado.faturaApp > 0 ? formatar(estado.faturaApp) : '';
 
             renderizarListas();
-            calcular();
+            calcular(); // Calcula o atual
         }
 
         function salvarEstadoNoGeral() {
             dadosGerais[mesAtual] = estado;
-            localStorage.setItem('financasV13', JSON.stringify(dadosGerais));
+            localStorage.setItem('financasV15', JSON.stringify(dadosGerais));
+        }
+
+        // Função auxiliar para calcular a sobra de qualquer mês (usada na propagação)
+        function calcularSobraDoMes(dadosMes) {
+            if (!dadosMes) return 0;
+            
+            const totalFixos = dadosMes.fixos.reduce((acc, i) => acc + (parseFloat(i.valor)||0), 0);
+            const totalExtras = dadosMes.extras.reduce((acc, i) => acc + (parseFloat(i.valor)||0), 0);
+            const totalTerceiros = dadosMes.terceiros.reduce((acc, i) => acc + (parseFloat(i.valor)||0), 0);
+            const totalPix = dadosMes.pix.reduce((acc, i) => acc + (parseFloat(i.valor)||0), 0);
+            const totalFuturos = dadosMes.futuros ? dadosMes.futuros.reduce((acc, i) => acc + (parseFloat(i.valor)||0), 0) : 0;
+
+            const faturaBruta = dadosMes.faturaApp + totalFixos + totalExtras;
+            const minhaParteFatura = faturaBruta - totalTerceiros;
+            const somaEntradas = dadosMes.saldoNu + dadosMes.salario;
+
+            return somaEntradas - minhaParteFatura - totalPix - totalFuturos;
+        }
+
+        // NOVA FUNÇÃO: Propaga o saldo para o futuro
+        function propagarSaldos() {
+            const indexAtual = ORDEM_MESES.indexOf(mesAtual);
+            
+            // Percorre todos os meses seguintes até Dezembro
+            for (let i = indexAtual + 1; i < ORDEM_MESES.length; i++) {
+                const mesAnterior = ORDEM_MESES[i-1];
+                const mesSeguinte = ORDEM_MESES[i];
+
+                // Só propaga se o mês seguinte já foi criado/visitado
+                if (dadosGerais[mesSeguinte] && dadosGerais[mesAnterior]) {
+                    const sobraAnterior = calcularSobraDoMes(dadosGerais[mesAnterior]);
+                    
+                    // Atualiza o saldo inicial do mês seguinte
+                    dadosGerais[mesSeguinte].saldoNu = sobraAnterior > 0 ? sobraAnterior : 0;
+                } else {
+                    // Se encontrou um buraco (mês não criado), para a propagação
+                    break; 
+                }
+            }
+            // Salva tudo no banco
+            localStorage.setItem('financasV15', JSON.stringify(dadosGerais));
         }
 
         function renderizarListas() {
@@ -361,7 +415,7 @@
             renderListaGenerica('extras', 'lista-extras', 'val-negativo');
             renderListaGenerica('terceiros', 'lista-terceiros', 'val-positivo');
             renderListaGenerica('pix', 'lista-pix', 'val-pix');
-            renderListaGenerica('futuros', 'lista-futuros', 'val-futuro'); // Nova lista
+            renderListaGenerica('futuros', 'lista-futuros', 'val-futuro');
         }
 
         function renderListaGenerica(arrayName, elementId, colorClass) {
@@ -389,39 +443,32 @@
             const totalExtras = somarLista('extras');
             const totalTerceiros = somarLista('terceiros');
             const totalPix = somarLista('pix');
-            const totalFuturos = somarLista('futuros'); // Soma dos planejados
+            const totalFuturos = somarLista('futuros');
 
-            // 1. Saldo no App Agora (Só desconta o que já saiu: Pix)
             const saldoNoAppAgora = estado.saldoNu - totalPix;
 
-            // 2. Fatura Cartão
             const faturaBruta = estado.faturaApp + totalFixos + totalExtras;
             const minhaParteFatura = faturaBruta - totalTerceiros;
 
-            // 3. Sobrou Geral (Desconta TUDO: Cartão + Pix + Futuros)
             const somaEntradas = estado.saldoNu + estado.salario;
             const proMes = somaEntradas - minhaParteFatura - totalPix - totalFuturos;
 
-            // Atualização da Tela
             document.getElementById('res-saldo-app').innerText = formatar(saldoNoAppAgora); 
-            
             document.getElementById('res-fatura-bruta').innerText = formatar(faturaBruta);
             document.getElementById('res-total-terceiros').innerText = formatar(totalTerceiros);
             document.getElementById('res-minha-fatura').innerText = formatar(minhaParteFatura);
-            
             document.getElementById('display-total-fixos').innerText = formatar(totalFixos);
             document.getElementById('display-total-extras').innerText = formatar(totalExtras);
             document.getElementById('display-total-terceiros').innerText = formatar(totalTerceiros);
             document.getElementById('res-total-pix').innerText = formatar(totalPix);
-            
-            // Novo total
             document.getElementById('res-total-futuros').innerText = formatar(totalFuturos);
 
             const elProMes = document.getElementById('res-pro-mes');
             elProMes.innerText = formatar(proMes);
             elProMes.style.color = proMes >= 0 ? '#820ad1' : '#ff4d4d';
 
-            salvarEstadoNoGeral();
+            salvarEstadoNoGeral(); // Salva o mês atual
+            propagarSaldos(); // Dispara o efeito cascata para os próximos
         }
 
         function somarLista(arrayName) {

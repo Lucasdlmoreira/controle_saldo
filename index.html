@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minhas Finanças V11</title>
+    <title>Minhas Finanças</title>
     <style>
         :root {
             --nu-roxo: #820ad1;
@@ -58,7 +58,6 @@
         .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.95rem; }
         .row label { font-weight: 500; color: #555; }
         
-        /* MUDANÇA: Input agora parece texto mas aceita numeros */
         .input-money {
             border: 1px solid #ddd; border-radius: 6px; padding: 8px;
             width: 130px; text-align: right; font-size: 1rem; color: #333;
@@ -72,6 +71,16 @@
         .text-blue { color: var(--blue); }
         .text-orange { color: var(--orange); }
         
+        /* Destaque Saldo Real */
+        .saldo-real-destaque {
+            background-color: #fff8e1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ffe082;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+
         .fatura-destaque {
             background: #fdfdfd; border: 1px solid #eee; border-radius: 10px; padding: 10px; margin-bottom: 15px;
         }
@@ -137,23 +146,47 @@
     <div class="dashboard">
 
         <div class="card">
-            <h2>💰 Entradas</h2>
+            <h2>💰 Minha Conta</h2>
+            
             <div class="row">
-                <label>Saldo Conta Nubank</label>
+                <label>Saldo Inicial (Última vez que vi)</label>
                 <input type="tel" id="saldo-nu" class="input-money" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
             </div>
-            <div class="row">
-                <label>Salário</label>
-                <input type="tel" id="salario" class="input-money" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
+
+            <div class="saldo-real-destaque">
+                <div class="row" style="margin-bottom: 0;">
+                    <label style="color: #f57f17;">Saldo no App Agora:</label>
+                    <div class="calc-value text-orange" id="res-saldo-app">R$ 0,00</div>
+                </div>
+                <small style="color: #f9a825; font-size: 0.75rem;">(Saldo Inicial - Gastos Pix/Débito)</small>
             </div>
+
             <div class="row">
-                <label>SOMA DISPONÍVEL</label>
-                <div class="calc-value text-green" id="res-soma">R$ 0,00</div>
+                <label>Salário (+)</label>
+                <input type="tel" id="salario" class="input-money" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
             </div>
         </div>
 
         <div class="card">
-            <h2>💳 Gestão do Cartão</h2>
+            <h2>
+                💸 Gastos Pix / Débito
+                <span class="text-orange" id="res-total-pix" style="font-size: 1rem;">R$ 0,00</span>
+            </h2>
+            <p style="font-size: 0.8rem; color: #999; margin-top: -10px; margin-bottom: 15px;">
+                Adicione aqui o "Sabonete", "Mecânico", etc.
+            </p>
+
+            <ul class="fatura-list" id="lista-pix"></ul>
+            
+            <div class="add-area">
+                <input type="text" id="novo-pix-nome" placeholder="Gasto (ex: Sabonete)">
+                <input type="tel" id="novo-pix-valor" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
+                <button class="btn-add bg-orange" onclick="adicionarItem('pix')">+</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>💳 Cartão de Crédito</h2>
             
             <div class="fatura-destaque">
                 <div class="row" style="margin-bottom:0">
@@ -206,29 +239,11 @@
             </div>
         </div>
 
-        <div class="card">
-            <h2>
-                💸 Gastos no Pix / Débito
-                <span class="text-orange" id="res-total-pix" style="font-size: 1rem;">R$ 0,00</span>
-            </h2>
-            <p style="font-size: 0.8rem; color: #999; margin-top: -10px; margin-bottom: 15px;">
-                Descontados direto do "Sobrou".
-            </p>
-
-            <ul class="fatura-list" id="lista-pix"></ul>
-            
-            <div class="add-area">
-                <input type="text" id="novo-pix-nome" placeholder="Ex: Mecânico, Luz">
-                <input type="tel" id="novo-pix-valor" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
-                <button class="btn-add bg-orange" onclick="adicionarItem('pix')">+</button>
-            </div>
-        </div>
-
         <div class="card big-result">
             <span>SOBROU PRO MÊS</span>
             <strong id="res-pro-mes">R$ 0,00</strong>
             <small style="color:#999; font-size:0.8rem; display:block; margin-top:10px;">
-                (Soma - Cartão - Pix)
+                (Saldo Inicial + Salário - Cartão - Pix)
             </small>
         </div>
 
@@ -249,51 +264,38 @@
         let estado = {}; 
 
         function init() {
-            const salvo = localStorage.getItem('financasV11');
+            const salvo = localStorage.getItem('financasV12'); // Atualizado V12
             if (salvo) {
                 dadosGerais = JSON.parse(salvo);
             }
-
             mesAtual = document.getElementById('mes-select').value;
             carregarMes(mesAtual);
         }
 
-        // --- FUNÇÕES DE FORMATAÇÃO E MÁSCARA ---
-
-        // Função mágica que formata enquanto você digita
         function mascaraMoeda(elemento) {
-            let valor = elemento.value.replace(/\D/g, ""); // Remove tudo que não for dígito
-            
+            let valor = elemento.value.replace(/\D/g, ""); 
             if (valor === "") {
                 elemento.value = "";
                 calcular();
                 return;
             }
-
-            // Converte para centavos e formata
             valor = (parseFloat(valor) / 100).toLocaleString('pt-BR', {
                 style: 'currency',
                 currency: 'BRL'
             });
-
             elemento.value = valor;
-            calcular(); // Recalcula em tempo real
+            calcular();
         }
 
-        // Função que lê "R$ 1.200,50" e devolve o numero 1200.50 para conta
         function lerMoeda(valorString) {
             if (!valorString || typeof valorString !== 'string') return 0;
-            // Remove 'R$', espaços, pontos de milhar, e troca vírgula por ponto
             let limpo = valorString.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
             return parseFloat(limpo) || 0;
         }
 
-        // Função que pega numero 1200.50 e devolve "R$ 1.200,50"
         function formatar(valorNum) {
             return valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         }
-
-        // ------------------------------------------
 
         function trocarMes() {
             salvarEstadoNoGeral();
@@ -316,7 +318,6 @@
                 };
             }
 
-            // Preenche os inputs principais (agora com formatação)
             document.getElementById('saldo-nu').value = estado.saldoNu > 0 ? formatar(estado.saldoNu) : '';
             document.getElementById('salario').value = estado.salario > 0 ? formatar(estado.salario) : '';
             document.getElementById('fatura-app').value = estado.faturaApp > 0 ? formatar(estado.faturaApp) : '';
@@ -327,7 +328,7 @@
 
         function salvarEstadoNoGeral() {
             dadosGerais[mesAtual] = estado;
-            localStorage.setItem('financasV11', JSON.stringify(dadosGerais));
+            localStorage.setItem('financasV12', JSON.stringify(dadosGerais));
         }
 
         function renderizarListas() {
@@ -354,7 +355,6 @@
         }
 
         function calcular() {
-            // Agora usamos lerMoeda para entender o que está escrito no input
             estado.saldoNu = lerMoeda(document.getElementById('saldo-nu').value);
             estado.salario = lerMoeda(document.getElementById('salario').value);
             estado.faturaApp = lerMoeda(document.getElementById('fatura-app').value);
@@ -364,17 +364,25 @@
             const totalTerceiros = somarLista('terceiros');
             const totalPix = somarLista('pix');
 
+            // CÁLCULO NOVO: SALDO REAL NO APP
+            // Saldo Inicial - Tudo que gastei no Pix
+            const saldoNoAppAgora = estado.saldoNu - totalPix;
+
+            // Fatura Cartão
             const faturaBruta = estado.faturaApp + totalFixos + totalExtras;
             const minhaParteFatura = faturaBruta - totalTerceiros;
 
+            // Sobrou geral
             const somaEntradas = estado.saldoNu + estado.salario;
             const proMes = somaEntradas - minhaParteFatura - totalPix;
 
-            // Resultados (apenas exibição)
-            document.getElementById('res-soma').innerText = formatar(somaEntradas);
+            // Atualização da Tela
+            document.getElementById('res-saldo-app').innerText = formatar(saldoNoAppAgora); // Novo campo
+            
             document.getElementById('res-fatura-bruta').innerText = formatar(faturaBruta);
             document.getElementById('res-total-terceiros').innerText = formatar(totalTerceiros);
             document.getElementById('res-minha-fatura').innerText = formatar(minhaParteFatura);
+            
             document.getElementById('display-total-fixos').innerText = formatar(totalFixos);
             document.getElementById('display-total-extras').innerText = formatar(totalExtras);
             document.getElementById('display-total-terceiros').innerText = formatar(totalTerceiros);
@@ -388,7 +396,6 @@
         }
 
         function somarLista(arrayName) {
-            // Soma direto do estado (que guarda números puros)
             return estado[arrayName].reduce((acc, item) => acc + (parseFloat(item.valor)||0), 0);
         }
 
@@ -399,10 +406,10 @@
             if (tipo === 'pix') idSuffix = 'pix';
 
             const nomeInput = document.getElementById(`novo-${idSuffix}-nome`);
-            const valorInput = document.getElementById(`novo-${idSuffix}-valor`); // Input com R$
+            const valorInput = document.getElementById(`novo-${idSuffix}-valor`);
 
             const nome = nomeInput.value || 'Item';
-            const valor = lerMoeda(valorInput.value); // Converte R$ para numero
+            const valor = lerMoeda(valorInput.value);
 
             if (!valor) return;
 
@@ -422,7 +429,6 @@
         }
 
         function editarItem(lista, index, campo, valor) {
-            // Se for valor, converte a string formatada de volta para número
             if (campo === 'valor') {
                 valor = lerMoeda(valor);
             }

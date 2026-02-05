@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minhas Finanças</title>
+    <title>Controle Financeiro</title>
     <style>
         :root {
             --nu-roxo: #820ad1;
@@ -14,6 +14,7 @@
             --red: #ff4d4d;
             --blue: #0099ff;
             --orange: #ff9900;
+            --dark-gray: #555;
         }
 
         body {
@@ -70,6 +71,7 @@
         .text-red { color: var(--red); }
         .text-blue { color: var(--blue); }
         .text-orange { color: var(--orange); }
+        .text-gray { color: var(--dark-gray); }
         
         /* Destaque Saldo Real */
         .saldo-real-destaque {
@@ -101,6 +103,7 @@
         .val-negativo { color: var(--red); } 
         .val-positivo { color: var(--blue); }
         .val-pix { color: var(--orange); }
+        .val-futuro { color: var(--dark-gray); }
 
         .btn-remove { background: none; border: none; color: #ccc; font-size: 1.2rem; padding: 0 5px; cursor: pointer;}
         .btn-remove:hover { color: var(--red); }
@@ -111,6 +114,7 @@
         .bg-roxo { background-color: var(--nu-roxo); }
         .bg-blue { background-color: var(--blue); }
         .bg-orange { background-color: var(--orange); }
+        .bg-gray { background-color: var(--dark-gray); }
 
         .big-result { text-align: center; padding: 20px; }
         .big-result span { display: block; font-size: 0.9rem; color: #777; margin-bottom: 5px; }
@@ -149,7 +153,7 @@
             <h2>💰 Minha Conta</h2>
             
             <div class="row">
-                <label>Saldo Inicial (Última vez que vi)</label>
+                <label>Saldo Inicial (Visto no App)</label>
                 <input type="tel" id="saldo-nu" class="input-money" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
             </div>
 
@@ -158,7 +162,7 @@
                     <label style="color: #f57f17;">Saldo no App Agora:</label>
                     <div class="calc-value text-orange" id="res-saldo-app">R$ 0,00</div>
                 </div>
-                <small style="color: #f9a825; font-size: 0.75rem;">(Saldo Inicial - Gastos Pix/Débito)</small>
+                <small style="color: #f9a825; font-size: 0.75rem;">(Saldo Inicial - Gastos Pix/Débito Já Feitos)</small>
             </div>
 
             <div class="row">
@@ -169,17 +173,17 @@
 
         <div class="card">
             <h2>
-                💸 Gastos Pix / Débito
+                💸 Gastos Pix / Débito (Já fiz)
                 <span class="text-orange" id="res-total-pix" style="font-size: 1rem;">R$ 0,00</span>
             </h2>
             <p style="font-size: 0.8rem; color: #999; margin-top: -10px; margin-bottom: 15px;">
-                Adicione aqui o "Sabonete", "Mecânico", etc.
+                Adicione aqui o que já saiu da conta.
             </p>
 
             <ul class="fatura-list" id="lista-pix"></ul>
             
             <div class="add-area">
-                <input type="text" id="novo-pix-nome" placeholder="Gasto (ex: Sabonete)">
+                <input type="text" id="novo-pix-nome" placeholder="Gasto">
                 <input type="tel" id="novo-pix-valor" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
                 <button class="btn-add bg-orange" onclick="adicionarItem('pix')">+</button>
             </div>
@@ -239,11 +243,29 @@
             </div>
         </div>
 
+        <div class="card">
+            <h2>
+                📉 Abater do Final (Planejado)
+                <span class="text-gray" id="res-total-futuros" style="font-size: 1rem;">R$ 0,00</span>
+            </h2>
+            <p style="font-size: 0.8rem; color: #999; margin-top: -10px; margin-bottom: 15px;">
+                Gastos que <strong>ainda não fiz</strong>, mas que já tem dono.
+            </p>
+
+            <ul class="fatura-list" id="lista-futuros"></ul>
+            
+            <div class="add-area">
+                <input type="text" id="novo-futuro-nome" placeholder="Gasto">
+                <input type="tel" id="novo-futuro-valor" oninput="mascaraMoeda(this)" placeholder="R$ 0,00">
+                <button class="btn-add bg-gray" onclick="adicionarItem('futuros')">+</button>
+            </div>
+        </div>
+
         <div class="card big-result">
             <span>SOBROU PRO MÊS</span>
             <strong id="res-pro-mes">R$ 0,00</strong>
             <small style="color:#999; font-size:0.8rem; display:block; margin-top:10px;">
-                (Saldo Inicial + Salário - Cartão - Pix)
+                (Saldo + Salário - Cartão - Pix - Planejados)
             </small>
         </div>
 
@@ -264,7 +286,7 @@
         let estado = {}; 
 
         function init() {
-            const salvo = localStorage.getItem('financasV12'); // Atualizado V12
+            const salvo = localStorage.getItem('financasV13'); // Atualizado V13
             if (salvo) {
                 dadosGerais = JSON.parse(salvo);
             }
@@ -306,6 +328,8 @@
         function carregarMes(mes) {
             if (dadosGerais[mes]) {
                 estado = dadosGerais[mes];
+                // Garante compatibilidade se a versão anterior não tinha 'futuros'
+                if(!estado.futuros) estado.futuros = [];
             } else {
                 estado = {
                     saldoNu: 0,
@@ -314,7 +338,8 @@
                     fixos: JSON.parse(JSON.stringify(FIXOS_PADRAO)),
                     extras: [],
                     terceiros: [],
-                    pix: []
+                    pix: [],
+                    futuros: [] // Novo array para planejados
                 };
             }
 
@@ -328,7 +353,7 @@
 
         function salvarEstadoNoGeral() {
             dadosGerais[mesAtual] = estado;
-            localStorage.setItem('financasV12', JSON.stringify(dadosGerais));
+            localStorage.setItem('financasV13', JSON.stringify(dadosGerais));
         }
 
         function renderizarListas() {
@@ -336,6 +361,7 @@
             renderListaGenerica('extras', 'lista-extras', 'val-negativo');
             renderListaGenerica('terceiros', 'lista-terceiros', 'val-positivo');
             renderListaGenerica('pix', 'lista-pix', 'val-pix');
+            renderListaGenerica('futuros', 'lista-futuros', 'val-futuro'); // Nova lista
         }
 
         function renderListaGenerica(arrayName, elementId, colorClass) {
@@ -363,21 +389,21 @@
             const totalExtras = somarLista('extras');
             const totalTerceiros = somarLista('terceiros');
             const totalPix = somarLista('pix');
+            const totalFuturos = somarLista('futuros'); // Soma dos planejados
 
-            // CÁLCULO NOVO: SALDO REAL NO APP
-            // Saldo Inicial - Tudo que gastei no Pix
+            // 1. Saldo no App Agora (Só desconta o que já saiu: Pix)
             const saldoNoAppAgora = estado.saldoNu - totalPix;
 
-            // Fatura Cartão
+            // 2. Fatura Cartão
             const faturaBruta = estado.faturaApp + totalFixos + totalExtras;
             const minhaParteFatura = faturaBruta - totalTerceiros;
 
-            // Sobrou geral
+            // 3. Sobrou Geral (Desconta TUDO: Cartão + Pix + Futuros)
             const somaEntradas = estado.saldoNu + estado.salario;
-            const proMes = somaEntradas - minhaParteFatura - totalPix;
+            const proMes = somaEntradas - minhaParteFatura - totalPix - totalFuturos;
 
             // Atualização da Tela
-            document.getElementById('res-saldo-app').innerText = formatar(saldoNoAppAgora); // Novo campo
+            document.getElementById('res-saldo-app').innerText = formatar(saldoNoAppAgora); 
             
             document.getElementById('res-fatura-bruta').innerText = formatar(faturaBruta);
             document.getElementById('res-total-terceiros').innerText = formatar(totalTerceiros);
@@ -387,6 +413,9 @@
             document.getElementById('display-total-extras').innerText = formatar(totalExtras);
             document.getElementById('display-total-terceiros').innerText = formatar(totalTerceiros);
             document.getElementById('res-total-pix').innerText = formatar(totalPix);
+            
+            // Novo total
+            document.getElementById('res-total-futuros').innerText = formatar(totalFuturos);
 
             const elProMes = document.getElementById('res-pro-mes');
             elProMes.innerText = formatar(proMes);
@@ -404,6 +433,7 @@
             if (tipo === 'extras') idSuffix = 'extra';
             if (tipo === 'terceiros') idSuffix = 'terceiro';
             if (tipo === 'pix') idSuffix = 'pix';
+            if (tipo === 'futuros') idSuffix = 'futuro';
 
             const nomeInput = document.getElementById(`novo-${idSuffix}-nome`);
             const valorInput = document.getElementById(`novo-${idSuffix}-valor`);
